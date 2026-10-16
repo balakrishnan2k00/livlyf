@@ -8,5 +8,11 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
 export default defineConfig({
   plugins: [react()],
   envDir: root,
-  server: { port: 5173 },
+  server: {
+    port: 5173,
+    proxy: {
+      "/api": { target: "http://localhost:3001", changeOrigin: true },
+      "/health": { target: "http://localhost:3001", changeOrigin: true },
+    },
+  },
 });

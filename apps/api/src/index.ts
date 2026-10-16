@@ -4,7 +4,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { config, validateConfig } from "./config.js";
 import { requireAuth, type AuthedRequest } from "./auth.js";
-import { confirmRunPayment, createRun, listRuns } from "./runs.js";
+import { checkUsername, deleteAccount, signIn, signUp } from "./authRoutes.js";
+import { confirmRunPayment, createRun, deleteRun, listRuns } from "./runs.js";
+import { profileIsAdmin } from "./profileAdmin.js";
+import { requireAdmin } from "./adminMiddleware.js";
+import { adminUsage, createUser, deleteUserLogin, listUsers, updateUser } from "./adminRoutes.js";
 import { stripe } from "./stripe.js";
 import { supabaseAdmin } from "./supabase.js";
 import { executeRun } from "./runs.js";
@@ -63,16 +67,34 @@ app.use(
     credentials: true,
   }),
 );
-app.use(express.json());
+app.use(express.json({ limit: "3mb" }));
+
+app.post("/api/auth/signup", signUp);
+app.post("/api/auth/login", signIn);
+app.get("/api/auth/check-username", checkUsername);
 
 app.get("/api/me", requireAuth, async (req: AuthedRequest, res) => {
-  const { data } = await supabaseAdmin.from("profiles").select("*").eq("id", req.userId!).single();
-  res.json({ profile: data, isAdmin: req.isAdmin });
+  const { data } = await supabaseAdmin.from("profiles").select("*").eq("id", req.profileId!).maybeSingle();
+  const isAdmin = Boolean(
+    data?.is_admin === true ||
+      req.isAdmin ||
+      (data ? profileIsAdmin(data, req.userEmail) : false),
+  );
+  res.json({ profile: data, isAdmin });
 });
+
+app.delete("/api/account", requireAuth, deleteAccount);
+
+app.get("/api/admin/users", requireAuth, requireAdmin, listUsers);
+app.post("/api/admin/users", requireAuth, requireAdmin, createUser);
+app.patch("/api/admin/users/:id", requireAuth, requireAdmin, updateUser);
+app.delete("/api/admin/users/:id/login", requireAuth, requireAdmin, deleteUserLogin);
+app.get("/api/admin/usage", requireAuth, requireAdmin, adminUsage);
 
 app.post("/api/runs", requireAuth, createRun);
 app.post("/api/runs/confirm", requireAuth, confirmRunPayment);
 app.get("/api/runs", requireAuth, listRuns);
+app.delete("/api/runs/:id", requireAuth, deleteRun);
 
 const apiDir = path.dirname(fileURLToPath(import.meta.url));
 const webDist = path.resolve(apiDir, "../../web/dist");

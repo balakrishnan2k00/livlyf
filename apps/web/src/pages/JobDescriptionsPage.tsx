@@ -36,10 +36,10 @@ export function JobDescriptionsPage() {
 
   return (
     <div>
-      <h1 style={{ margin: "0 0 0.5rem", fontSize: 22 }}>Job descriptions</h1>
-      <p className="muted">Store JDs to pair with your profile in AI Studio.</p>
+      <h1 className="page-title">Job descriptions</h1>
+      <p className="page-lead">Store JDs to pair with your profile in AI Studio.</p>
 
-      <form onSubmit={add} className="glass" style={{ padding: 1, margin: "1rem 0", display: "grid", gap: 0.5 }}>
+      <form onSubmit={add} className="glass" style={{ padding: "1.5rem", margin: "1.5rem 0", display: "grid", gap: "1rem" }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0.5 }}>
           <label>
             <span className="label">Title</span>
@@ -57,9 +57,9 @@ export function JobDescriptionsPage() {
         <button type="submit" className="btn btn-primary" style={{ width: "fit-content" }}>Add JD</button>
       </form>
 
-      <div className="grid-dense">
+      <div className="grid-roles">
         {items.map((jd) => (
-          <article key={jd.id} className="glass card-compact">
+          <article key={jd.id} className="glass card-role">
             <h3>{jd.title}</h3>
             <p>{jd.company ?? "—"}</p>
             <p className="muted" style={{ marginTop: 0.35, maxHeight: 72, overflow: "hidden" }}>{jd.raw_text}</p>

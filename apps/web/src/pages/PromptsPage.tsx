@@ -37,13 +37,13 @@ export function PromptsPage() {
 
   return (
     <div>
-      <h1 style={{ margin: "0 0 0.5rem", fontSize: 22 }}>Custom prompts</h1>
-      <p className="muted">
+      <h1 className="page-title">Custom prompts</h1>
+      <p className="page-lead">
         Override defaults per role. Use placeholders: <code>{"{{profile}}"}</code>, <code>{"{{jd}}"}</code>,{" "}
         <code>{"{{goal}}"}</code>.
       </p>
 
-      <form onSubmit={save} className="glass" style={{ padding: 1, marginTop: 1, display: "grid", gap: 0.5, maxWidth: 720 }}>
+      <form onSubmit={save} className="glass" style={{ padding: "1.5rem", marginTop: "1.5rem", display: "grid", gap: "1rem", maxWidth: 720 }}>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0.5 }}>
           <label>
             <span className="label">Role</span>
@@ -69,10 +69,10 @@ export function PromptsPage() {
         <button type="submit" className="btn btn-primary" style={{ width: "fit-content" }}>Save prompt</button>
       </form>
 
-      <h2 style={{ fontSize: 14, marginTop: 1.25 }}>Your prompts</h2>
-      <div className="grid-dense">
+      <h2 className="section-title" style={{ marginTop: "2rem" }}>Your prompts</h2>
+      <div className="grid-roles">
         {mine.map((p) => (
-          <div key={p.id} className="glass card-compact">
+          <div key={p.id} className="glass card-role">
             <h3>{p.name}</h3>
             <p><span className="tag">{p.role_key}</span></p>
           </div>

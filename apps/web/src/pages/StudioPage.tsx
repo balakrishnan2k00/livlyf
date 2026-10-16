@@ -3,52 +3,67 @@ import { useSearchParams } from "react-router-dom";
 import { loadStripe } from "@stripe/stripe-js";
 import { supabase } from "../lib/supabase";
 import { apiGet, apiPost } from "../lib/api";
-
-type Role = { key: string; label: string };
-type JD = { id: string; title: string };
-type UserPrompt = { id: string; name: string; role_key: string };
+import { FileDropzone } from "../components/FileDropzone";
+import { RunResults } from "../components/RunResults";
 
 const stripePk = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY as string | undefined;
 
 export function StudioPage() {
   const [params] = useSearchParams();
-  const [roles, setRoles] = useState<Role[]>([]);
-  const [jds, setJds] = useState<JD[]>([]);
-  const [prompts, setPrompts] = useState<UserPrompt[]>([]);
-  const [roleKey, setRoleKey] = useState(params.get("role") ?? "job_seeker");
-  const [jdId, setJdId] = useState("");
-  const [userPromptId, setUserPromptId] = useState("");
-  const [goal, setGoal] = useState("Maximize fit for this role");
+  const [roleKey] = useState(params.get("role") ?? "job_seeker");
+  const [jdText, setJdText] = useState("");
+  const [profileText, setProfileText] = useState("");
+  const [goal, setGoal] = useState("Score fit and produce a hiring-ready brief");
   const [output, setOutput] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
-    supabase.from("role_definitions").select("key, label").order("sort_order").then(({ data }) => setRoles(data ?? []));
-    supabase.from("job_descriptions").select("id, title").then(({ data }) => setJds(data ?? []));
-    supabase.from("user_prompts").select("id, name, role_key").then(({ data }) => setPrompts(data ?? []));
     apiGet<{ isAdmin: boolean }>("/api/me").then((m) => setIsAdmin(m.isAdmin)).catch(() => {});
+    supabase.auth.getUser().then(async ({ data }) => {
+      if (!data.user) return;
+      const { data: p } = await supabase.from("profiles").select("*").eq("id", data.user.id).single();
+      if (!p) return;
+      const skills = Array.isArray(p.skills) ? (p.skills as string[]).join(", ") : "";
+      const block = [
+        p.display_name && `Name: ${p.display_name}`,
+        p.headline && `Headline: ${p.headline}`,
+        p.summary && `Summary: ${p.summary}`,
+        skills && `Skills: ${skills}`,
+      ]
+        .filter(Boolean)
+        .join("\n");
+      if (block) setProfileText((prev) => (prev.trim() ? prev : block));
+    });
   }, []);
 
   async function run(e: FormEvent) {
     e.preventDefault();
     setError(null);
     setOutput("");
+    if (jdText.trim().length < 40) {
+      setError("Add a job description (paste or upload, at least ~40 characters).");
+      return;
+    }
+    if (profileText.trim().length < 40) {
+      setError("Add a candidate profile (paste or upload .txt / .pdf / .docx).");
+      return;
+    }
     setBusy(true);
     try {
       const body = {
         roleKey,
         goal,
-        jobDescriptionId: jdId || undefined,
-        userPromptId: userPromptId || undefined,
+        jdText: jdText.trim(),
+        profileText: profileText.trim(),
+        fitAnalysis: true,
       };
       const res = await apiPost<{
         runId: string;
         status: string;
         clientSecret?: string;
         output?: string;
-        amountCents?: number;
       }>("/api/runs", body);
 
       if (res.output) {
@@ -77,58 +92,53 @@ export function StudioPage() {
     }
   }
 
-  const filteredPrompts = prompts.filter((p) => p.role_key === roleKey);
-
   return (
     <div>
-      <h1 style={{ margin: "0 0 0.5rem", fontSize: 22 }}>AI Studio</h1>
-      <p className="muted">
-        Pay-per-use AI run {isAdmin ? "(admin — free)" : "— card charged per run"}.
+      <h1 className="page-title">Fit analysis</h1>
+      <p className="page-lead">
+        Upload or paste a <strong>job description</strong> and <strong>candidate profile</strong> (TXT, PDF, or Word).
+        Livlyf returns scores, skills match, gaps, and a candidate-style summary.
+        {isAdmin ? " Admin — free runs." : ""}
       </p>
 
-      <form onSubmit={run} className="glass" style={{ padding: 1, marginTop: 1, display: "grid", gap: 0.5, maxWidth: 720 }}>
-        <label>
-          <span className="label">Role</span>
-          <select className="input" value={roleKey} onChange={(e) => setRoleKey(e.target.value)}>
-            {roles.map((r) => (
-              <option key={r.key} value={r.key}>{r.label}</option>
-            ))}
-          </select>
-        </label>
-        <label>
-          <span className="label">Job description (optional)</span>
-          <select className="input" value={jdId} onChange={(e) => setJdId(e.target.value)}>
-            <option value="">— None —</option>
-            {jds.map((j) => (
-              <option key={j.id} value={j.id}>{j.title}</option>
-            ))}
-          </select>
-        </label>
-        <label>
-          <span className="label">Custom prompt (optional)</span>
-          <select className="input" value={userPromptId} onChange={(e) => setUserPromptId(e.target.value)}>
-            <option value="">Default Livlyf prompt</option>
-            {filteredPrompts.map((p) => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-          </select>
-        </label>
-        <label>
-          <span className="label">Goal</span>
-          <input className="input" value={goal} onChange={(e) => setGoal(e.target.value)} />
-        </label>
-        {error && <p style={{ color: "var(--danger)", margin: 0 }}>{error}</p>}
-        <button type="submit" className="btn btn-primary" disabled={busy} style={{ width: "fit-content" }}>
-          {busy ? "Running…" : "Run Livlyf AI"}
-        </button>
-      </form>
+      <div className="studio-layout">
+        <form onSubmit={run} className="glass studio-form">
+          <FileDropzone
+            label="Job description"
+            hint="Role requirements, responsibilities, must-haves"
+            value={jdText}
+            onText={setJdText}
+          />
+          <FileDropzone
+            label="Candidate profile"
+            hint="Resume, LinkedIn export, or bio"
+            value={profileText}
+            onText={setProfileText}
+          />
+          <label>
+            <span className="label">Goal (optional)</span>
+            <input className="input" value={goal} onChange={(e) => setGoal(e.target.value)} />
+          </label>
+          {error && <p style={{ color: "var(--danger)", margin: 0 }}>{error}</p>}
+          <button type="submit" className="btn btn-primary" disabled={busy}>
+            {busy ? "Analyzing…" : "Run fit analysis"}
+          </button>
+        </form>
 
-      {output && (
-        <section style={{ marginTop: 1 }}>
-          <h2 style={{ fontSize: 14 }}>Output</h2>
-          <div className="markdown-out">{output}</div>
-        </section>
-      )}
+        <div className="studio-results">
+          {output ? (
+            <RunResults output={output} />
+          ) : (
+            <div className="glass studio-placeholder">
+              <h3 className="section-title">Results preview</h3>
+              <p className="muted" style={{ margin: 0, lineHeight: 1.6 }}>
+                You will see an overall fit score, category bar chart, candidate card, skills map (matched / missing),
+                strengths, gaps, and interview focus areas.
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

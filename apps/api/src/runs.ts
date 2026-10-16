@@ -4,6 +4,7 @@ import { config } from "./config.js";
 import { chatCompletion, fillTemplate } from "./azureOpenAI.js";
 import { createRunPaymentIntent, stripe } from "./stripe.js";
 import type { AuthedRequest } from "./auth.js";
+import { FIT_ANALYSIS_SYSTEM, buildFitUserMessage } from "./fitAnalysis.js";
 
 function profileToText(p: Record<string, unknown>): string {
   const parts = [
@@ -18,14 +19,18 @@ function profileToText(p: Record<string, unknown>): string {
 }
 
 export async function createRun(req: AuthedRequest, res: Response) {
-  const userId = req.userId!;
-  const { roleKey, goal, jobDescriptionId, templateId, userPromptId } = req.body as {
-    roleKey: string;
-    goal?: string;
-    jobDescriptionId?: string;
-    templateId?: string;
-    userPromptId?: string;
-  };
+  const userId = req.profileId!;
+  const { roleKey, goal, jobDescriptionId, templateId, userPromptId, jdText: bodyJd, profileText: bodyProfile, fitAnalysis } =
+    req.body as {
+      roleKey: string;
+      goal?: string;
+      jobDescriptionId?: string;
+      templateId?: string;
+      userPromptId?: string;
+      jdText?: string;
+      profileText?: string;
+      fitAnalysis?: boolean;
+    };
   if (!roleKey) {
     res.status(400).json({ error: "roleKey required" });
     return;
@@ -37,8 +42,8 @@ export async function createRun(req: AuthedRequest, res: Response) {
     return;
   }
 
-  let jdText = "(No job description selected — use profile and goal only.)";
-  if (jobDescriptionId) {
+  let jdText = bodyJd?.trim() || "";
+  if (!jdText && jobDescriptionId) {
     const { data: jd } = await supabaseAdmin
       .from("job_descriptions")
       .select("raw_text, title, company")
@@ -47,10 +52,19 @@ export async function createRun(req: AuthedRequest, res: Response) {
       .single();
     if (jd) jdText = `${jd.title ?? "Role"}${jd.company ? ` @ ${jd.company}` : ""}\n\n${jd.raw_text}`;
   }
+  if (!jdText) jdText = "(No job description provided.)";
+
+  const profileText = bodyProfile?.trim() || profileToText(profile as Record<string, unknown>);
+  const useFit = fitAnalysis ?? Boolean(bodyJd?.trim() || bodyProfile?.trim() || jobDescriptionId);
 
   let systemPrompt = "";
   let userTemplate = "";
-  if (userPromptId) {
+  let userContent = "";
+
+  if (useFit && !userPromptId) {
+    systemPrompt = FIT_ANALYSIS_SYSTEM;
+    userContent = buildFitUserMessage(jdText, profileText, goal ?? "Full fit analysis for this role");
+  } else if (userPromptId) {
     const { data: up } = await supabaseAdmin
       .from("user_prompts")
       .select("*")
@@ -63,6 +77,12 @@ export async function createRun(req: AuthedRequest, res: Response) {
     }
     systemPrompt = up.system_prompt;
     userTemplate = up.user_prompt_template;
+    userContent = fillTemplate(userTemplate, {
+      profile: profileText,
+      jd: jdText,
+      goal: goal ?? "General analysis",
+      role: roleKey,
+    });
   } else {
     let query = supabaseAdmin.from("prompt_templates").select("*");
     if (templateId) query = query.eq("id", templateId);
@@ -74,15 +94,13 @@ export async function createRun(req: AuthedRequest, res: Response) {
     }
     systemPrompt = tpl.system_prompt;
     userTemplate = tpl.user_prompt_template;
+    userContent = fillTemplate(userTemplate, {
+      profile: profileText,
+      jd: jdText,
+      goal: goal ?? "General analysis",
+      role: roleKey,
+    });
   }
-
-  const vars = {
-    profile: profileToText(profile as Record<string, unknown>),
-    jd: jdText,
-    goal: goal ?? "General analysis",
-    role: roleKey,
-  };
-  const userContent = fillTemplate(userTemplate, vars);
 
   const isAdmin = req.isAdmin ?? false;
   const costCents = isAdmin ? 0 : config.stripe.pricePerRunCents;
@@ -99,7 +117,7 @@ export async function createRun(req: AuthedRequest, res: Response) {
       status: isAdmin ? "paid" : "pending_payment",
       is_admin_run: isAdmin,
       cost_cents: costCents,
-      input_snapshot: { goal, systemPrompt, userContent },
+      input_snapshot: { goal, systemPrompt, userContent, jdPreview: jdText.slice(0, 500), profilePreview: profileText.slice(0, 500) },
     })
     .select()
     .single();
@@ -177,7 +195,7 @@ export async function executeRun(runId: string, systemPrompt?: string, userConte
 
 export async function confirmRunPayment(req: AuthedRequest, res: Response) {
   const { runId } = req.body as { runId: string };
-  const userId = req.userId!;
+  const userId = req.profileId!;
   const { data: run } = await supabaseAdmin
     .from("ai_runs")
     .select("*")
@@ -212,7 +230,7 @@ export async function listRuns(req: AuthedRequest, res: Response) {
   const { data, error } = await supabaseAdmin
     .from("ai_runs")
     .select("id, role_key, status, cost_cents, created_at, completed_at, output_text")
-    .eq("user_id", req.userId!)
+    .eq("user_id", req.profileId!)
     .order("created_at", { ascending: false })
     .limit(50);
   if (error) {
@@ -220,4 +238,28 @@ export async function listRuns(req: AuthedRequest, res: Response) {
     return;
   }
   res.json({ runs: data });
+}
+
+export async function deleteRun(req: AuthedRequest, res: Response) {
+  const runId = req.params.id;
+  if (!runId) {
+    res.status(400).json({ error: "Run id required" });
+    return;
+  }
+  const { data: existing } = await supabaseAdmin
+    .from("ai_runs")
+    .select("id")
+    .eq("id", runId)
+    .eq("user_id", req.profileId!)
+    .maybeSingle();
+  if (!existing) {
+    res.status(404).json({ error: "Run not found" });
+    return;
+  }
+  const { error } = await supabaseAdmin.from("ai_runs").delete().eq("id", runId).eq("user_id", req.profileId!);
+  if (error) {
+    res.status(500).json({ error: error.message });
+    return;
+  }
+  res.json({ ok: true });
 }

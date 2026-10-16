@@ -34,7 +34,7 @@ Open **`.env`** and fill **only these four** for local login + dashboard (Stripe
 
 **Not the same thing:** the **database password** / `postgresql://…` URL is for SQL tools only. The API needs the **`service_role` JWT** from the **API** page.
 
-Optional: set `LIVLYF_ADMIN_EMAILS=you@example.com` so AI runs are free for your account.
+Optional: set `LIVLYF_ADMIN_EMAILS=your_username` (or your contact email) so AI runs are free and **Admin users** / **Admin usage** appear in the nav.
 
 ### Step 2 — Allow login from your PC (Supabase Auth)
 
@@ -64,7 +64,7 @@ You should see **web** on `http://localhost:5173` and **API** `Livlyf API listen
 5. If email confirmation is **on**, confirm via the email from Supabase, then **Sign in**.
 6. After sign-in you see the **Dashboard** (role cards). Supabase auto-creates your row in **`profiles`** on first signup.
 
-There is **no separate admin login** — same page. Admins are users whose email is in `LIVLYF_ADMIN_EMAILS`.
+There is **no separate admin login** — same page. Admins are users in `LIVLYF_ADMIN_EMAILS` (username or email) or with `profiles.is_admin = true` in Supabase.
 
 ### Migration (only if you reset the database)
 
@@ -149,7 +149,7 @@ After Blueprint creates the services, open each service → **Environment** and 
 | `VITE_SUPABASE_ANON_KEY` | anon key from Supabase |
 | `CORS_ORIGIN` | `https://livlyf.onrender.com` |
 | `CLIENT_ORIGIN` | `https://livlyf.onrender.com` |
-| `VITE_API_URL` | leave **empty** (same-origin `/api`) |
+| `VITE_API_URL` | leave **empty** locally (Vite proxies `/api` → `:3001`) and on Render (same-origin) |
 | `LIVLYF_ADMIN_EMAILS` | your@email.com |
 | `AZURE_OPENAI_*` / `STRIPE_*` | when ready |
 
@@ -182,7 +182,7 @@ Render **auto-deploys** on push to `main` (default).
 
 ## Admin (free usage)
 
-Set `LIVLYF_ADMIN_EMAILS` to your login email(s). Optionally set `profiles.is_admin = true` in Supabase for the same users.
+Set `LIVLYF_ADMIN_EMAILS` to your **username** (recommended) or contact email on Render/local `.env`, then sign out and sign in again. Or set `profiles.is_admin = true` in Supabase.
 
 ## Branding
 

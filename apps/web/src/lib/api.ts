@@ -1,9 +1,8 @@
 import { supabase } from "./supabase";
 
-/** Same host in production when VITE_API_URL is unset (single Render service). */
-const base =
-  (import.meta.env.VITE_API_URL as string | undefined)?.trim() ||
-  (import.meta.env.DEV ? "http://localhost:3001" : "");
+/** Production: same-origin. Local dev: Vite proxies /api → API (leave VITE_API_URL empty). */
+const explicitApi = (import.meta.env.VITE_API_URL as string | undefined)?.trim();
+const base = explicitApi || "";
 
 async function authHeaders(): Promise<HeadersInit> {
   const { data } = await supabase.auth.getSession();
@@ -26,6 +25,40 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
     headers: await authHeaders(),
     body: JSON.stringify(body),
   });
+  if (!res.ok) {
+    let msg = await res.text();
+    try {
+      const j = JSON.parse(msg) as { error?: string };
+      if (j.error) msg = j.error;
+    } catch {
+      /* keep raw */
+    }
+    throw new Error(msg);
+  }
+  return res.json() as Promise<T>;
+}
+
+export async function apiPatch<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${base}${path}`, {
+    method: "PATCH",
+    headers: await authHeaders(),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    let msg = await res.text();
+    try {
+      const j = JSON.parse(msg) as { error?: string };
+      if (j.error) msg = j.error;
+    } catch {
+      /* keep raw */
+    }
+    throw new Error(msg);
+  }
+  return res.json() as Promise<T>;
+}
+
+export async function apiDelete<T>(path: string): Promise<T> {
+  const res = await fetch(`${base}${path}`, { method: "DELETE", headers: await authHeaders() });
   if (!res.ok) {
     let msg = await res.text();
     try {

@@ -1,7 +1,14 @@
 import { FormEvent, useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
+import { deleteMyAccount } from "../lib/authApi";
+import { apiGet } from "../lib/api";
 
 type Profile = {
+  username: string;
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+  phone: string | null;
   display_name: string | null;
   headline: string | null;
   summary: string | null;
@@ -9,31 +16,24 @@ type Profile = {
 };
 
 export function ProfilePage() {
-  const [profile, setProfile] = useState<Profile>({
-    display_name: "",
-    headline: "",
-    summary: "",
-    skills: [],
-  });
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [skillsText, setSkillsText] = useState("");
   const [saved, setSaved] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getUser().then(async ({ data }) => {
-      if (!data.user) return;
-      const { data: p } = await supabase.from("profiles").select("*").eq("id", data.user.id).single();
-      if (p) {
-        const skills = Array.isArray(p.skills) ? (p.skills as string[]) : [];
-        setProfile({
-          display_name: p.display_name,
-          headline: p.headline,
-          summary: p.summary,
-          skills,
-        });
-        setSkillsText(skills.join(", "));
-      }
+    apiGet<{ profile: Profile }>("/api/me").then((r) => {
+      const p = r.profile;
+      if (!p) return;
+      const skills = Array.isArray(p.skills) ? (p.skills as string[]) : [];
+      setProfile({ ...p, skills });
+      setSkillsText(skills.join(", "));
     });
   }, []);
+
+  if (!profile) {
+    return <p className="muted">Loading profile…</p>;
+  }
 
   async function save(e: FormEvent) {
     e.preventDefault();
@@ -43,6 +43,10 @@ export function ProfilePage() {
     await supabase
       .from("profiles")
       .update({
+        first_name: profile.first_name,
+        last_name: profile.last_name,
+        email: profile.email,
+        phone: profile.phone,
         display_name: profile.display_name,
         headline: profile.headline,
         summary: profile.summary,
@@ -53,14 +57,73 @@ export function ProfilePage() {
     setTimeout(() => setSaved(false), 2000);
   }
 
+  async function onDeleteAccount() {
+    const typed = prompt(`Type your username "${profile.username}" to permanently delete your account:`);
+    if (typed !== profile.username) return;
+    if (!confirm("This cannot be undone. Delete account and all runs?")) return;
+    setDeleting(true);
+    try {
+      await deleteMyAccount();
+      window.location.href = "/login";
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Delete failed");
+      setDeleting(false);
+    }
+  }
+
   return (
     <div>
-      <h1 style={{ margin: "0 0 0.5rem", fontSize: 22 }}>Profile</h1>
-      <p className="muted">Paste or refine your profile — AI runs use this as context.</p>
-      <form onSubmit={save} className="glass" style={{ padding: 1, marginTop: 1, display: "grid", gap: 0.65, maxWidth: 640 }}>
+      <h1 className="page-title">Profile</h1>
+      <p className="page-lead">
+        Signed in as <strong>@{profile.username}</strong> — career fields feed fit analysis when you do not upload a file.
+      </p>
+      <form onSubmit={save} className="glass" style={{ padding: "1.5rem", marginTop: "1.5rem", display: "grid", gap: "1rem", maxWidth: 720 }}>
+        <label>
+          <span className="label">Username</span>
+          <input className="input" value={profile.username} disabled />
+        </label>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem" }}>
+          <label>
+            <span className="label">First name</span>
+            <input
+              className="input"
+              value={profile.first_name ?? ""}
+              onChange={(e) => setProfile({ ...profile, first_name: e.target.value })}
+            />
+          </label>
+          <label>
+            <span className="label">Last name</span>
+            <input
+              className="input"
+              value={profile.last_name ?? ""}
+              onChange={(e) => setProfile({ ...profile, last_name: e.target.value })}
+            />
+          </label>
+        </div>
+        <label>
+          <span className="label">Email (optional)</span>
+          <input
+            className="input"
+            type="email"
+            value={profile.email ?? ""}
+            onChange={(e) => setProfile({ ...profile, email: e.target.value })}
+          />
+        </label>
+        <label>
+          <span className="label">Phone (optional)</span>
+          <input
+            className="input"
+            value={profile.phone ?? ""}
+            onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
+          />
+        </label>
         <label>
           <span className="label">Display name</span>
-          <input className="input" value={profile.display_name ?? ""} onChange={(e) => setProfile({ ...profile, display_name: e.target.value })} />
+          <input
+            className="input"
+            value={profile.display_name ?? ""}
+            onChange={(e) => setProfile({ ...profile, display_name: e.target.value })}
+          />
         </label>
         <label>
           <span className="label">Headline</span>
@@ -78,6 +141,14 @@ export function ProfilePage() {
           {saved ? "Saved" : "Save profile"}
         </button>
       </form>
+
+      <section className="glass" style={{ padding: "1.5rem", marginTop: "1.5rem", maxWidth: 720 }}>
+        <h2 className="section-title">Delete account</h2>
+        <p className="muted" style={{ marginTop: 0 }}>Removes your login only. Fit analysis and usage history stay for admin reporting.</p>
+        <button type="button" className="btn btn-ghost" style={{ color: "var(--danger)" }} disabled={deleting} onClick={onDeleteAccount}>
+          {deleting ? "Deleting…" : "Delete my account"}
+        </button>
+      </section>
     </div>
   );
 }
