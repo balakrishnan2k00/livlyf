@@ -85,6 +85,7 @@ Or with CLI (optional): `supabase link` + `supabase db push` — not required if
 | API won’t start | Set `SUPABASE_SERVICE_ROLE_KEY` (JWT, not DB password) |
 | Sign up works but sign in fails | Confirm email or disable confirm in Auth settings |
 | Dashboard empty / errors on History | API must be running; check terminal for port 3001 |
+| Render build **exit 127** on `vite build` | Build must install dev deps: `npm install --include=dev && npm run build`. Do **not** set `NODE_ENV=production` during build (Render sets it at runtime). |
 
 ## Push to Git (GitHub)
 

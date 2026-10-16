@@ -4,12 +4,11 @@ services:
     name: livlyf
     runtime: node
     plan: free
-    buildCommand: npm install && npm run build
+    # --include=dev: vite/tsc live in devDependencies; NODE_ENV=production skips them (exit 127)
+    buildCommand: npm install --include=dev && npm run build
     startCommand: npm run start
     healthCheckPath: /health
     envVars:
-      - key: NODE_ENV
-        value: production
       - key: CLIENT_ORIGIN
         sync: false
       - key: CORS_ORIGIN
