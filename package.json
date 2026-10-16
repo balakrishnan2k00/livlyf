@@ -1,0 +1,17 @@
+{
+  "name": "livlyf",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Livlyf — pay-per-use AI for profiles, job descriptions, and role-aware prompts",
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n web,api -c cyan,magenta \"npm run dev -w @livlyf/web\" \"npm run dev -w @livlyf/api\"",
+    "build": "npm run build -w @livlyf/web && npm run build -w @livlyf/api",
+    "start": "npm run start -w @livlyf/api"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

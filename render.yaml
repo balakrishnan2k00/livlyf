@@ -1,0 +1,55 @@
+# Livlyf on Render — push repo and apply Blueprint (Supabase is external)
+services:
+  - type: web
+    name: livlyf-api
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build -w @livlyf/api
+    startCommand: npm run start -w @livlyf/api
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Render sets PORT automatically — do not override
+      - key: CLIENT_ORIGIN
+        sync: false
+      - key: CORS_ORIGIN
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: AZURE_OPENAI_ENDPOINT
+        sync: false
+      - key: AZURE_OPENAI_API_KEY
+        sync: false
+      - key: AZURE_OPENAI_API_VERSION
+        sync: false
+      - key: AZURE_OPENAI_DEPLOYMENT
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: STRIPE_PRICE_PER_RUN_CENTS
+        value: "99"
+      - key: LIVLYF_ADMIN_EMAILS
+        sync: false
+
+  - type: web
+    name: livlyf-web
+    runtime: static
+    plan: free
+    buildCommand: npm install && npm run build -w @livlyf/web
+    staticPublishPath: apps/web/dist
+    envVars:
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_ANON_KEY
+        sync: false
+      - key: VITE_API_URL
+        sync: false
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

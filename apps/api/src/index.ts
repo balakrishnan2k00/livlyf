@@ -1,0 +1,82 @@
+import express from "express";
+import cors from "cors";
+import { config, validateConfig } from "./config.js";
+import { requireAuth, type AuthedRequest } from "./auth.js";
+import { confirmRunPayment, createRun, listRuns } from "./runs.js";
+import { stripe } from "./stripe.js";
+import { supabaseAdmin } from "./supabase.js";
+import { executeRun } from "./runs.js";
+
+const app = express();
+
+app.get("/health", (_req, res) => res.json({ ok: true, service: "livlyf-api" }));
+
+app.post(
+  "/webhooks/stripe",
+  express.raw({ type: "application/json" }),
+  async (req, res) => {
+    if (!stripe || !config.stripe.webhookSecret) {
+      res.status(503).send("Stripe webhook not configured");
+      return;
+    }
+    const sig = req.headers["stripe-signature"];
+    if (!sig || typeof sig !== "string") {
+      res.status(400).send("Missing signature");
+      return;
+    }
+    try {
+      const event = stripe.webhooks.constructEvent(req.body, sig, config.stripe.webhookSecret);
+      if (event.type === "payment_intent.succeeded") {
+        const pi = event.data.object;
+        const runId = pi.metadata?.livlyf_run_id;
+        if (runId) {
+          const { data: run } = await supabaseAdmin.from("ai_runs").select("*").eq("id", runId).single();
+          if (run && run.status === "pending_payment") {
+            await supabaseAdmin.from("ai_runs").update({ status: "paid" }).eq("id", runId);
+            const snap = run.input_snapshot as { systemPrompt?: string; userContent?: string };
+            await executeRun(runId, snap.systemPrompt, snap.userContent);
+          }
+        }
+      }
+      res.json({ received: true });
+    } catch (e) {
+      res.status(400).send(`Webhook Error: ${e instanceof Error ? e.message : "unknown"}`);
+    }
+  },
+);
+
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (!origin) return callback(null, true);
+      if (origin === config.corsOrigin) return callback(null, true);
+      if (process.env.NODE_ENV !== "production" && /^http:\/\/localhost:\d+$/.test(origin)) {
+        return callback(null, true);
+      }
+      callback(new Error("Not allowed by CORS"));
+    },
+    credentials: true,
+  }),
+);
+app.use(express.json());
+
+app.get("/api/me", requireAuth, async (req: AuthedRequest, res) => {
+  const { data } = await supabaseAdmin.from("profiles").select("*").eq("id", req.userId!).single();
+  res.json({ profile: data, isAdmin: req.isAdmin });
+});
+
+app.post("/api/runs", requireAuth, createRun);
+app.post("/api/runs/confirm", requireAuth, confirmRunPayment);
+app.get("/api/runs", requireAuth, listRuns);
+
+try {
+  validateConfig();
+} catch (e) {
+  console.error(e instanceof Error ? e.message : e);
+  console.error("API will not start until livlyf/.env is complete. /health would work but routes need Supabase.");
+  process.exit(1);
+}
+
+app.listen(config.port, "0.0.0.0", () => {
+  console.log(`Livlyf API listening on 0.0.0.0:${config.port}`);
+});
