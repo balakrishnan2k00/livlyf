@@ -126,55 +126,47 @@ Render deploys from **GitHub/GitLab/Bitbucket**. Supabase stays as-is (hosted by
 1. [dashboard.render.com](https://dashboard.render.com) → sign in.
 2. **Account Settings** → connect **GitHub** and allow access to the `livlyf` repo.
 
-### 2. Create services from Blueprint
+### 2. Create service from Blueprint
 
-1. **New +** → **Blueprint**.
+1. **New +** → **Blueprint** (or edit existing **`livlyf`** service).
 2. Select the **`livlyf`** repository.
-3. Render reads **`render.yaml`** and creates:
-   - **`livlyf-api`** — Node API
-   - **`livlyf-web`** — static React site
+3. **`render.yaml`** deploys **one** service: React UI + `/api` on the same URL (e.g. `https://livlyf.onrender.com`).
 
-Click **Apply**.
+Click **Apply** / redeploy after pulling the latest code.
 
 ### 3. Set environment variables (Dashboard)
 
 After Blueprint creates the services, open each service → **Environment** and set:
 
-**`livlyf-api`**
+**Service `livlyf`** (all on one service)
 
 | Key | Value |
 |-----|--------|
 | `SUPABASE_URL` | `https://hzaakdbgkuawheuvkdhh.supabase.co` |
 | `SUPABASE_SERVICE_ROLE_KEY` | service_role JWT from Supabase |
-| `CORS_ORIGIN` | Your **web** URL, e.g. `https://livlyf-web.onrender.com` |
-| `CLIENT_ORIGIN` | Same as `CORS_ORIGIN` |
-| `LIVLYF_ADMIN_EMAILS` | your@email.com |
-| `AZURE_OPENAI_*` | when ready |
-| `STRIPE_*` | when ready |
-
-**`livlyf-web`** (needed **at build time** for Vite)
-
-| Key | Value |
-|-----|--------|
-| `VITE_SUPABASE_URL` | same as `SUPABASE_URL` |
+| `VITE_SUPABASE_URL` | same as `SUPABASE_URL` (used at **build** time) |
 | `VITE_SUPABASE_ANON_KEY` | anon key from Supabase |
-| `VITE_API_URL` | Your **API** URL, e.g. `https://livlyf-api.onrender.com` |
+| `CORS_ORIGIN` | `https://livlyf.onrender.com` |
+| `CLIENT_ORIGIN` | `https://livlyf.onrender.com` |
+| `VITE_API_URL` | leave **empty** (same-origin `/api`) |
+| `LIVLYF_ADMIN_EMAILS` | your@email.com |
+| `AZURE_OPENAI_*` / `STRIPE_*` | when ready |
 
-If you set `VITE_API_URL` wrong the first time: fix it → **Manual Deploy** → **Clear build cache & deploy** on `livlyf-web`.
+After changing any `VITE_*` variable: **Manual Deploy** → **Clear build cache & deploy**.
 
 ### 4. Supabase Auth for production
 
 Supabase → **Authentication → URL configuration**:
 
-- **Site URL:** `https://livlyf-web.onrender.com` (your real Render web URL)
-- **Redirect URLs:** add `https://livlyf-web.onrender.com/**`
+- **Site URL:** `https://livlyf.onrender.com`
+- **Redirect URLs:** add `https://livlyf.onrender.com/**`
 
 Keep `http://localhost:5173/**` if you still develop locally.
 
 ### 5. After deploy
 
 - Open the **web** URL → sign up / sign in (same as local).
-- API health: `https://livlyf-api.onrender.com/health` → `{"ok":true,...}`
+- API health: `https://livlyf.onrender.com/health` → `{"ok":true,...}`
 
 ### Updates later
 

@@ -1,5 +1,7 @@
 import express from "express";
 import cors from "cors";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { config, validateConfig } from "./config.js";
 import { requireAuth, type AuthedRequest } from "./auth.js";
 import { confirmRunPayment, createRun, listRuns } from "./runs.js";
@@ -49,8 +51,11 @@ app.use(
   cors({
     origin(origin, callback) {
       if (!origin) return callback(null, true);
-      if (origin === config.corsOrigin) return callback(null, true);
+      if (config.corsOrigin && origin === config.corsOrigin) return callback(null, true);
       if (process.env.NODE_ENV !== "production" && /^http:\/\/localhost:\d+$/.test(origin)) {
+        return callback(null, true);
+      }
+      if (process.env.NODE_ENV === "production" && /\.onrender\.com$/.test(origin)) {
         return callback(null, true);
       }
       callback(new Error("Not allowed by CORS"));
@@ -68,6 +73,18 @@ app.get("/api/me", requireAuth, async (req: AuthedRequest, res) => {
 app.post("/api/runs", requireAuth, createRun);
 app.post("/api/runs/confirm", requireAuth, confirmRunPayment);
 app.get("/api/runs", requireAuth, listRuns);
+
+const apiDir = path.dirname(fileURLToPath(import.meta.url));
+const webDist = path.resolve(apiDir, "../../web/dist");
+
+if (process.env.NODE_ENV === "production") {
+  app.use(express.static(webDist, { index: false }));
+  app.get(/^(?!\/api\/|\/health$|\/webhooks\/).*/, (_req, res, next) => {
+    res.sendFile(path.join(webDist, "index.html"), (err) => {
+      if (err) next(err);
+    });
+  });
+}
 
 try {
   validateConfig();

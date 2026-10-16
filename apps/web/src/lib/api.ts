@@ -1,6 +1,9 @@
 import { supabase } from "./supabase";
 
-const base = (import.meta.env.VITE_API_URL as string) ?? "http://localhost:3001";
+/** Same host in production when VITE_API_URL is unset (single Render service). */
+const base =
+  (import.meta.env.VITE_API_URL as string | undefined)?.trim() ||
+  (import.meta.env.DEV ? "http://localhost:3001" : "");
 
 async function authHeaders(): Promise<HeadersInit> {
   const { data } = await supabase.auth.getSession();
