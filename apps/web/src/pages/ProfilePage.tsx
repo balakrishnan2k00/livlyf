@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { deleteMyAccount } from "../lib/authApi";
 import { apiGet } from "../lib/api";
+import { useMe } from "../hooks/useMe";
 
 type Profile = {
   username: string;
@@ -16,6 +17,7 @@ type Profile = {
 };
 
 export function ProfilePage() {
+  const { isAdmin, ready: meReady } = useMe();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [skillsText, setSkillsText] = useState("");
   const [saved, setSaved] = useState(false);
@@ -75,7 +77,13 @@ export function ProfilePage() {
     <div>
       <h1 className="page-title">Profile</h1>
       <p className="page-lead">
-        Signed in as <strong>@{profile.username}</strong> — career fields feed fit analysis when you do not upload a file.
+        Signed in as <strong>@{profile.username}</strong>
+        {meReady && isAdmin ? (
+          <span className="profile-admin-badge"> · Administrator</span>
+        ) : meReady ? (
+          <span className="muted"> · Standard account</span>
+        ) : null}{" "}
+        — career fields feed fit analysis when you do not upload a file.
       </p>
       <form onSubmit={save} className="glass" style={{ padding: "1.5rem", marginTop: "1.5rem", display: "grid", gap: "1rem", maxWidth: 720 }}>
         <label>

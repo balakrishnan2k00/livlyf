@@ -1,6 +1,5 @@
-import type { ReactNode } from "react";
 import { useState } from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { useMe } from "../hooks/useMe";
 import { Logo } from "./Logo";
@@ -20,7 +19,7 @@ const adminLinks = [
   { to: "/admin/usage", label: "Admin usage" },
 ];
 
-export function Shell({ children }: { children: ReactNode }) {
+export function Shell() {
   const { signOut } = useAuth();
   const { isAdmin, profile, ready } = useMe();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -81,7 +80,9 @@ export function Shell({ children }: { children: ReactNode }) {
           </div>
         </div>
       </header>
-      <main className="main main--wide">{children}</main>
+      <main className="main main--wide">
+        <Outlet />
+      </main>
     </div>
   );
 }

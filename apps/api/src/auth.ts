@@ -45,6 +45,6 @@ export async function requireAuth(req: AuthedRequest, res: Response, next: NextF
     return;
   }
   req.profileId = profile.id;
-  req.isAdmin = profileIsAdmin(profile, req.userEmail);
+  req.isAdmin = profile.is_admin === true || profileIsAdmin(profile, req.userEmail);
   next();
 }

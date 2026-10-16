@@ -334,6 +334,11 @@ select {
   width: 100%;
 }
 
+.profile-admin-badge {
+  color: var(--tag-text);
+  font-weight: 600;
+}
+
 .logo {
   display: flex;
   align-items: center;
